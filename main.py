@@ -164,30 +164,28 @@ class Analyzer(Handler):
         self.protocol = check_protocol(url)
         self.webdriver_path = self.driver_handler()
         self.file_location = os.path.dirname(__file__)
-        self.saved_path = self.create_directory()
+        self.saved_path = self.set_save_path()
         self.driver = webdriver.Chrome(self.webdriver_path, options=option)
-        self.create_directory()
 
-    def create_directory(self) -> str:
+    def set_save_path(self) -> str:
         """
-        Creating a directory with the default name of analysis in the saved path.
-        If you enter your desired name, this function will create a directory with the same name for you.
+        Sets the save path for the images.
 
-        :return: New saved path
+        :return: The save path for the images.
         """
-        # Create directory
 
-        # check isdir for prevent error if directory is not exist
-        if os.path.isdir(os.path.join(self.file_location, self.name)):
-            self.saved_path = os.path.join(self.file_location, self.name)
+        self.saved_path = os.path.join(self.file_location, self.name)
+        if os.path.isdir(self.saved_path) and not os.listdir(self.saved_path):
             return self.saved_path
-        else:
-            self.saved_path = f"{self.file_location}/save/{self.name}"
 
-        try:
-            os.makedirs(self.saved_path)
-        except FileExistsError:
-            pass
+        self.saved_path = os.path.join(self.file_location, "save", self.name)
+
+        i = 2
+        while os.path.exists(self.saved_path):
+            self.saved_path = os.path.join(self.file_location, "save", f'{self.name}-{i}')
+            i += 1
+
+        os.makedirs(self.saved_path)
 
         return self.saved_path
 

@@ -1,5 +1,5 @@
 import unittest
-from main import Handler
+from main import Handler, url_handler
 
 obj = Handler()
 

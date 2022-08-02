@@ -3,27 +3,22 @@ import time
 
 import log21
 
-from main import Analyzer, Handler, url_handler
+from main import Analyzer, url_handler
 
 logger = log21.get_logger()
 
 
 def main():
-    # TODO: Well, honestly, I don't like this way of getting inputs! We should do it with an argument parser!
-    # Get Website URL
-    url = url_check = None
-    while not url_check:
-        url = logger.input("Please Enter Website URL: ").lower()
-        url_check = url_handler(url)
-        if not url_check:
-            logger.error("Please enter a valid http/https URL")
+    parser = log21.ColorizingArgumentParser()
+    parser.add_argument('-u', '--url', help='URL to analyze', required=True)
+    parser.add_argument('-o', '--output', help='Output directory name', default='Analyzer')
 
-    # Get Website Name
-    name = logger.input("Please Enter Website Name(Optional): ") or "Analyze"
+    args = parser.parse_args()
 
-    # You can pass webdriver and saved path as argument to Analyze class
+    if not url_handler(args.url):
+        parser.error('Invalid URL')
 
-    analyzer = Analyzer(url, name)
+    analyzer = Analyzer(args.url, args.output)
 
     start_time = time.time()
 
