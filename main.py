@@ -29,49 +29,53 @@ option.add_experimental_option("prefs", prefs)
 option.add_argument('--headless')
 
 
-class Handler:
+def check_protocol(url) -> str:
+    protocol = 'https' if url.startswith('https') else 'http'
+    return protocol
 
-    def check_protocol(self, url) -> str:
-        hprotocol = 'https' if 'https' in url else 'http'
-        return hprotocol
 
-    def url_handler(self, url) -> bool:
-        """
-        This function is for handling the URL.
-        It will check if the URL is valid or not.
-        If it's valid, It will return True & save the url in main_url.
-        If it's not valid, It will return False.
+def url_handler(url) -> bool:
+    """
+    This function is for handling the URL.
+    It will check if the URL is valid or not.
+    If it's valid, It will return True & save the url in main_url.
+    If it's not valid, It will return False.
 
-        :param url: URL you want to check
-        :return: If URL is valid return True, else return False
-        """
+    :param url: URL you want to check
+    :return: If URL is valid return True, else return False
+    """
 
-        regex = ("((http|https)://)(www.)?" +
-                 "[a-zA-Z0-9@:%._\\+~#?&//=]" +
-                 "{2,256}\\.[a-z]" +
-                 "{2,6}\\b([-a-zA-Z0-9@:%" +
-                 "._\\+~#?&//=]*)")
-        pattern = re.compile(regex)
+    regex = ("((http|https)://)(www.)?" +
+             "[a-zA-Z0-9@:%._\\+~#?&//=]" +
+             "{2,256}\\.[a-z]" +
+             "{2,6}\\b([-a-zA-Z0-9@:%" +
+             "._\\+~#?&//=]*)")
+    pattern = re.compile(regex)
 
-        if re.search(pattern, url):
-            return True
-        else:
-            protocol = self.check_protocol(url)
-            if protocol in url:
-                if "://" in url:
-                    return False
-                else:
-                    new_url = f"{protocol}://{url}"
-                    if re.search(pattern, new_url):
-                        return True
-                    else:
-                        return False
+    if re.search(pattern, url):
+        return True
+    else:
+        protocol = check_protocol(url)
+        if protocol in url:
+            if "://" in url:
+                return False
             else:
                 new_url = f"{protocol}://{url}"
                 if re.search(pattern, new_url):
                     return True
                 else:
                     return False
+        else:
+            new_url = f"{protocol}://{url}"
+            if re.search(pattern, new_url):
+                return True
+            else:
+                return False
+
+
+class Handler:
+    def __init__(self):
+        self.platform = ".exe" if sys.platform.startswith("win") else ''
 
     def driver_handler(self) -> str:
         project_location = os.path.dirname(__file__)
@@ -87,8 +91,8 @@ class Handler:
             else:
                 self.driver_handler()
 
-    # using 'in' keyword in if , to detect y in yes (if user enter yes) or detect n in no
     def _find_driver(self):
+        # using 'in' keyword in if, to detect y in yes (if user enter yes) or detect n in no
         ask = str(input("Do You Have ChromeDriver in your system? (y/n): ")).lower()
         if 'y' in ask:
             file_path = self._ask_driver_location()
@@ -96,7 +100,6 @@ class Handler:
                 return file_path
             else:
                 self._ask_driver_location()
-
         elif 'n' in ask:
             ask = str(input("Do You Want Use Automatic Chromedriver Downloader ? (y/n): ")).lower()
             if "y" in ask:
@@ -113,7 +116,7 @@ class Handler:
         try:
             import chromedriver_autoinstaller
         except:
-            self._downloadlibrary()
+            self._download_library()
         try:
             chromedriver_autoinstaller.install()
         except urllib.error.HTTPError:
@@ -127,11 +130,11 @@ class Handler:
 
     # no param for this section beacuse we need only chromedriver-autoinstaller
     # if you want add another library please edit function to give package name as param
-    def _downloadlibrary(self):
+    @staticmethod
+    def _download_library():
         import pip, importlib
         try:
             importlib.import_module("chromedriver-autoinstaller")
-
         except ImportError:
             try:
                 pip.main(["install", "chromedriver-autoinstaller"])
@@ -142,7 +145,8 @@ class Handler:
         finally:
             globals()["chromedriver-autoinstaller"] = importlib.import_module("chromedriver-autoinstaller")
 
-    def _ask_driver_location(self):
+    @staticmethod
+    def _ask_driver_location():
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
@@ -152,17 +156,17 @@ class Handler:
         return file_path
 
 
-class Analyze(Handler):
-
-    def __init__(self, url, name="Analyze"):
+class Analyzer(Handler):
+    def __init__(self, url, name="Analyzer"):
+        super().__init__()
         self.name = name
-        self.platform = ".exe" if sys.platform.startswith("win") else ''
         self.main_url = url
-        self.protocol = self.check_protocol(url)
+        self.protocol = check_protocol(url)
         self.webdriver_path = self.driver_handler()
         self.file_location = os.path.dirname(__file__)
         self.saved_path = self.create_directory()
         self.driver = webdriver.Chrome(self.webdriver_path, options=option)
+        self.create_directory()
 
     def create_directory(self) -> str:
         """
@@ -175,25 +179,16 @@ class Analyze(Handler):
 
         # check isdir for prevent error if directory is not exist
         if os.path.isdir(os.path.join(self.file_location, self.name)):
-            path = os.path.join(self.file_location, self.name)
-            print("Directory already exists!")
+            self.saved_path = os.path.join(self.file_location, self.name)
             return self.saved_path
         else:
-            path = f"{self.file_location}/save/{self.name}"
+            self.saved_path = f"{self.file_location}/save/{self.name}"
 
         try:
-            os.mkdir(path)
+            os.makedirs(self.saved_path)
         except FileExistsError:
-            # Save new path in saved path
-            self.saved_path = path
+            pass
 
-            print("Directory already exists!")
-            return self.saved_path
-
-        # Save new path in saved path
-        self.saved_path = path
-
-        print("Directory Created!")
         return self.saved_path
 
     def _check_exists(self, by, el) -> bool:
