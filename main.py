@@ -1,14 +1,15 @@
 # Import regex
+import os
 import re
 # Platform
 import sys
 # urllib for try catch
 import urllib
-import os
+from time import sleep
 
-import log21
 import requests
-
+from PIL import (Image, ImageFont, ImageDraw, )
+from decouple import config
 from selenium import webdriver
 from selenium.common import (
     ElementNotInteractableException, NoSuchElementException,
@@ -17,9 +18,6 @@ from selenium.common import (
 )
 from selenium.webdriver import Keys
 from selenium.webdriver.common.by import By
-from time import sleep
-from PIL import (Image, ImageFont, ImageDraw, )
-from decouple import config
 
 # Config Important Options for Webdriver
 option = webdriver.ChromeOptions()
@@ -29,21 +27,6 @@ prefs = {"download.default_directory": os.getcwd()}
 option.add_experimental_option("prefs", prefs)
 
 option.add_argument('--headless')
-
-
-class TextColors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
-txtcolor = TextColors()
 
 
 class Handler:
@@ -225,8 +208,9 @@ class Analyze(Handler):
             self.driver.find_element(by, el)
         except NoSuchElementException:
             return False
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + '{"Error": "Element not interactable!", "name": "Checking exists method"}')
+        except ElementNotInteractableException as e:
+            e.args = (f"Element is not interactable: {el}",)
+            raise e
         return True
 
     def _wait_until(self, by: str, el: str):
@@ -263,73 +247,81 @@ class Analyze(Handler):
         driver.get("https://imagecompressor.com/")
 
         # Get Upload Button
-        sleep(2)
         try:
             upload_btn = driver.find_element(By.XPATH, '//*[@id="fileSelector"]')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Upload Button)', 'Name': 'Optimize'}")
+        except NoSuchElementException as e:
+            e.args += ("Upload Button Not Found!",)
+            raise e
 
         # Upload images
         try:
             upload_btn.send_keys(f"{saved_path}/whois.png")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (whois image)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("WHOIS image not intractable!",)
+            raise e
         except InvalidArgumentException:
-            print(txtcolor.FAIL + "{'Error': 'File not found! (whois image)', 'Name': 'Optimize'}")
+            # WHOIS image file not found
             pass
 
         try:
             upload_btn.send_keys(f"{saved_path}/responsive.png")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (responsive image)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Responsive image not intractable!",)
+            raise e
         except InvalidArgumentException:
-            print(txtcolor.FAIL + "{'Error': 'File not found! (responsive image)', 'Name': 'Optimize'}")
+            # Responsive image file not found
             pass
 
         try:
             upload_btn.send_keys(f"{saved_path}/gtmetrix.png")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (gtmetrix image)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("GTMetrix image not intractable!",)
+            raise e
         except InvalidArgumentException:
-            print(txtcolor.FAIL + "{'Error': 'File not found! (gtmetrix image)', 'Name': 'Optimize'}")
+            # GTMetrix image file not found
             pass
 
         try:
             upload_btn.send_keys(f"{saved_path}/backlinks.png")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (backlinks image)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Backlinks image not intractable!",)
+            raise e
         except InvalidArgumentException:
-            print(txtcolor.FAIL + "{'Error': 'File not found! (backlinks image)', 'Name': 'Optimize'}")
+            # Backlinks image file not found
             pass
 
         try:
             upload_btn.send_keys(f"{saved_path}/AMP.png")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (AMP image)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("AMP image not intractable!",)
+            raise e
         except InvalidArgumentException:
-            print(txtcolor.FAIL + "{'Error': 'File not found! (AMP image)', 'Name': 'Optimize'}")
+            # AMP image file not found
             pass
 
         try:
             upload_btn.send_keys(f"{saved_path}/ssl.png")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (ssl image)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("SSL image not intractable!",)
+            raise e
         except InvalidArgumentException:
-            print(txtcolor.FAIL + "{'Error': 'File not found! (ssl image)', 'Name': 'Optimize'}")
+            # SSL image file not found
             pass
 
         # Find and click download button
         sleep(2)
         try:
             download_btn = driver.find_element(By.XPATH, '//*[@id="app"]/section[1]/div[3]/button')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Upload Button)', 'Name': 'Optimize'}")
+        except NoSuchElementException as e:
+            e.args += ("Download Button Not Found!",)
+            raise e
 
         sleep(22)
         try:
             download_btn.click()
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (download)', 'Name': 'Optimize'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Download Button not intractable!",)
+            raise e
 
         sleep(12)
 
@@ -337,16 +329,18 @@ class Analyze(Handler):
         for file in os.listdir(saved_path):
             try:
                 os.remove(os.path.join(saved_path, file))
-            except PermissionError:
-                return print(txtcolor.FAIL + "{'Error': 'Access is denied (removing file)', 'Name': 'Optimize'}")
+            except PermissionError as e:
+                e.args += (f"Permission Error: Removing {file}",)
+                raise e
 
         # Move optimized files to saved path directory
         src = os.path.join(os.getcwd(), "imagecompressor.zip")
         dst = os.path.join(saved_path, "imagecompressor.zip")
         try:
             shutil.move(src, dst)
-        except FileNotFoundError:
-            return print(txtcolor.FAIL + "{'Error': 'File not fount! (move file)', 'Name': 'Optimize'}")
+        except FileNotFoundError as e:
+            e.args += (f"File Not Found: {src}",)
+            raise e
 
         # Unzip compressed file
         try:
@@ -354,8 +348,6 @@ class Analyze(Handler):
                 compress.extractall(saved_path)
         except FileNotFoundError:
             pass
-
-        return print("Images Optimized!")
 
     def get_whois(self):
         driver = self.driver
@@ -372,8 +364,9 @@ class Analyze(Handler):
         # Find searchbar in page
         try:
             search_bar = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]/div[3]/form/input[1]')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element!', 'Name': 'Whois'}")
+        except NoSuchElementException as e:
+            e.args += ("Search Bar Not Found!",)
+            raise e
 
         # Our whois API
         api_url = "https://www.whoisxmlapi.com/whoisserver/WhoisService"
@@ -425,15 +418,17 @@ class Analyze(Handler):
         try:
             search_bar.send_keys(domain_name)
             search_bar.send_keys(Keys.RETURN)
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (Search Field)', 'Name': 'Whois'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Search Bar not intractable!",)
+            raise e
 
         # Get IP Address
         sleep(4)
         try:
             raw_dns_text = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]/div[4]/div/div[1]').text
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Raw DNS text)', 'Name': 'Whois'}")
+        except NoSuchElementException as e:
+            e.args += ("Raw DNS Text Not Found!",)
+            raise e
         pattern = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
         ip_address = pattern.search(raw_dns_text).group()
 
@@ -454,8 +449,9 @@ class Analyze(Handler):
         try:
             hosted_website = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]/div[4]/div/div[1]/b').text
             hosted_website = f" - {hosted_website} other sites hosted on this server"
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Hosted website)', 'Name': 'Whois'}")
+        except NoSuchElementException as e:
+            e.args += ("Hosted Website Not Found!",)
+            raise e
 
         # Get country flag
         flag_url = f'https://countryflagsapi.com/png/{country_code}'
@@ -497,8 +493,6 @@ class Analyze(Handler):
         # Save whois image
         whois_image.save(f"{self.saved_path}/whois.png")
 
-        return print("Whois Done!")
-
     def get_responsive(self):
         driver = self.driver
 
@@ -511,15 +505,17 @@ class Analyze(Handler):
         # Find searchbar in page
         try:
             search_bar = driver.find_element(By.XPATH, '//input[@name="site"]')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element!', 'Name': 'Responsive'}")
+        except NoSuchElementException as e:
+            e.args += ("Search Bar Not Found!",)
+            raise e
 
         # Pass Main URL to responsive website
         try:
             search_bar.send_keys(self.main_url)
             search_bar.send_keys(Keys.RETURN)
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable! (Search Field)', 'Name': 'Responsive'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Search Bar not intractable!",)
+            raise e
 
         # make page for good picture by removing element
         sleep(2)
@@ -542,8 +538,6 @@ class Analyze(Handler):
         image = Image.open(f"{self.saved_path}/responsive.png")
         image.crop((140, 90, 1115, 635)).save(f"{self.saved_path}/responsive.png")
 
-        return print("Responsive Done!")
-
     def get_gtmetrix(self):
         driver = self.driver
 
@@ -554,8 +548,9 @@ class Analyze(Handler):
         try:
             driver.get("https://gtmetrix.com/")
             driver.set_page_load_timeout(400)
-        except TimeoutException:
-            return print(txtcolor.FAIL + "{'Error': 'Page timeout', 'Name': 'GTmetrix'}")
+        except TimeoutException as e:
+            e.args += ("Could not get responsive website URL",)
+            raise e
 
         # Change window size for image size
         driver.set_window_size(1280, 1024)
@@ -565,27 +560,31 @@ class Analyze(Handler):
         # Find login page button
         try:
             login_btn = driver.find_element(By.XPATH, '//*[@id="user-nav-login"]/a')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Login Button)', 'Name': 'GTMetrix'}")
+        except NoSuchElementException as e:
+            e.args += ("Login Button Not Found!",)
+            raise e
         login_btn.click()
 
         # Find email and password field in page
         try:
             email = driver.find_element(By.XPATH, '//input[@name="email"]')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Email Input)', 'Name': 'GTMetrix'}")
+        except NoSuchElementException as e:
+            e.args += ("Email Field Not Found!",)
+            raise e
 
         try:
             password = driver.find_element(By.XPATH, '//input[@name="password"]')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Password Input)', 'Name': 'GTMetrix'}")
+        except NoSuchElementException as e:
+            e.args += ("Password Field Not Found!",)
+            raise e
 
         try:
             submit_login_btn = driver.find_element(By.XPATH,
                                                    '//*[@id="menu-site-nav"]/div[2]/div[1]/form/div[4]/button'
                                                    )
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Submit Login Button)', 'Name': 'GTMetrix'}")
+        except NoSuchElementException as e:
+            e.args += ("Submit Login Button Not Found!",)
+            raise e
 
         # Pass Main URL to responsive website
         sleep(3)
@@ -593,8 +592,9 @@ class Analyze(Handler):
             email.send_keys(config('EMAIL'))
             password.send_keys(config('PASSWORD'))
             submit_login_btn.click()
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element Not Interactable (Email Field)', 'Name': 'GTMetrix'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Email Field not intractable!",)
+            raise e
 
         # Check Email and Password valid for login gtmetrix
         sleep(3)
@@ -605,15 +605,17 @@ class Analyze(Handler):
         sleep(6)
         try:
             search_bar = driver.find_element(By.XPATH, '/html/body/div[1]/main/article/form/div[1]/div[1]/div/input')
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Search URL Field)', 'Name': 'GTMetrix'}")
+        except NoSuchElementException as e:
+            e.args += ("Search Bar Not Found!",)
+            raise e
 
         # Pass Main URL to GTMetrix website
         sleep(3)
         try:
             search_bar.send_keys(self.main_url)
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element Not Interactable (Search URL Field)', 'Name': 'GTMetrix'}")
+        except ElementNotInteractableException as e:
+            e.args += ("Search Bar not intractable!",)
+            raise e
 
         # Find and submit Main URL to GTMetrix website
         sleep(3)
@@ -621,8 +623,9 @@ class Analyze(Handler):
             submit_url_btn = driver.find_element(By.XPATH,
                                                  '/html/body/div[1]/main/article/form/div[1]/div[2]/button'
                                                  )
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Submit URL Button)', 'Name': 'GTMetrix'}")
+        except NoSuchElementException as e:
+            e.args += ("Submit URL Button Not Found!",)
+            raise e
 
         submit_url_btn.click()
 
@@ -657,8 +660,6 @@ class Analyze(Handler):
         image = Image.open(f"{self.saved_path}/gtmetrix.png")
         image.crop((15, 5, 1070, 600)).save(f"{self.saved_path}/gtmetrix.png")
 
-        return print("GTmetrix Done!")
-
     def get_backlinks(self):
         driver = self.driver
 
@@ -676,10 +677,12 @@ class Analyze(Handler):
             search_bar = driver.find_element(By.XPATH, '//input[@name="url"]')
             search_bar.send_keys(self.main_url)
             search_bar.send_keys(Keys.RETURN)
-        except NoSuchElementException:
-            return print(txtcolor.FAIL + "{'Error': 'No such element! (Search Field)', 'Name': 'Backlinks'}")
-        except ElementNotInteractableException:
-            return print(txtcolor.FAIL + "{'Error': 'Element not intractable!'}")
+        except NoSuchElementException as e:
+            e.args += ("Search Bar Not Found!",)
+            raise e
+        except ElementNotInteractableException as e:
+            e.args += ("Search Bar not intractable!",)
+            raise e
 
         # Fixing image for good picture by changing style
         sleep(1)
@@ -696,8 +699,6 @@ class Analyze(Handler):
         # Crop and save the image
         image = Image.open(f"{self.saved_path}/backlinks.png")
         image.crop((90, 130, 1230, 540)).save(f"{self.saved_path}/backlinks.png")
-
-        return print("Backlinks Done!")
 
     def get_amp(self):
         # Get URL
