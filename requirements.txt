@@ -1,0 +1,5 @@
+selenium
+Pillow
+requests
+log21
+python-decouple

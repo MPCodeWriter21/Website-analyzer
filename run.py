@@ -2,9 +2,10 @@ from main import Analyze, Handler
 import time
 
 a = Handler()
-# Get Website URL
-def ask_url() -> str :
 
+
+# Get Website URL
+def ask_url() -> str:
     url = input("Please Enter Website URL: \n").lower()
     check_url = a.url_handler(url)
     if check_url is False:
@@ -12,6 +13,8 @@ def ask_url() -> str :
         ask_url()
     else:
         return url
+
+
 url = ask_url()
 # Get Website Name
 name = input("Please Enter Website Name: (Optional) \n") or "Analyze"
@@ -26,10 +29,15 @@ anz.create_directory()
 s = time.time()
 
 anz.get_whois()
+
 anz.get_responsive()
+
 anz.get_gtmetrix()
+
 anz.get_backlinks()
+
 anz.get_amp()
+
 anz.get_ssl()
 
 # Optimize Images
