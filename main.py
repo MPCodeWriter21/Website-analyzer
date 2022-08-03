@@ -1,11 +1,9 @@
 # Import regex
 import os
 import re
-# Platform
-import sys
-# urllib for try catch
-import urllib
+
 from time import sleep
+from typing import Union
 
 import requests
 from PIL import (Image, ImageFont, ImageDraw, )
@@ -19,14 +17,7 @@ from selenium.common import (
 from selenium.webdriver import Keys
 from selenium.webdriver.common.by import By
 
-# Config Important Options for Webdriver
-option = webdriver.ChromeOptions()
-option.add_argument("--window-size=1280,1024")
-
-prefs = {"download.default_directory": os.getcwd()}
-option.add_experimental_option("prefs", prefs)
-
-option.add_argument('--headless')
+from driver_downloader import get_chrome_driver
 
 
 def check_protocol(url) -> str:
@@ -73,99 +64,26 @@ def url_handler(url) -> bool:
                 return False
 
 
-class Handler:
-    def __init__(self):
-        self.platform = ".exe" if sys.platform.startswith("win") else ''
+class Analyzer:
+    def __init__(self, url, name: str = "Analyzer", chromedriver_path: Union[str, os.PathLike] = None,
+                 verbose: bool = False):
+        # Config Important Options for Webdriver
+        self._options = webdriver.ChromeOptions()
+        self._options.add_argument("--window-size=1280,1024")
+        prefs = {"download.default_directory": os.getcwd()}
+        self._options.add_experimental_option("prefs", prefs)
+        self._options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        self._options.add_argument('--headless')
+        if not verbose:
+            self._options.add_argument('log-level=3')
 
-    def driver_handler(self) -> str:
-        project_location = os.path.dirname(__file__)
-        is_exist = os.path.isfile(path=os.path.join(project_location, 'chromedriver' + self.platform))
-        if is_exist:
-            hwebdriver_path = os.path.join(project_location, 'chromedriver' + self.platform)
-            return hwebdriver_path
-        else:
-            path = self._find_driver()
-            if type(path) == str:
-                hwebdriver_path = path
-                return hwebdriver_path
-            else:
-                self.driver_handler()
-
-    def _find_driver(self):
-        # using 'in' keyword in if, to detect y in yes (if user enter yes) or detect n in no
-        ask = str(input("Do You Have ChromeDriver in your system? (y/n): ")).lower()
-        if 'y' in ask:
-            file_path = self._ask_driver_location()
-            if "chromedriver" in file_path:
-                return file_path
-            else:
-                self._ask_driver_location()
-        elif 'n' in ask:
-            ask = str(input("Do You Want Use Automatic Chromedriver Downloader ? (y/n): ")).lower()
-            if "y" in ask:
-                self._download_driver()
-                return True
-            elif 'n' in ask:
-                print("Please Download ChromeDriver")
-                input()
-                exit()
-        else:
-            self._find_driver()
-
-    def _download_driver(self):
-        try:
-            import chromedriver_autoinstaller
-        except:
-            self._download_library()
-        try:
-            chromedriver_autoinstaller.install()
-        except urllib.error.HTTPError:
-            print("Cannot Download ChromeDriver Please Check Your Internet Connection")
-            input()
-            exit()
-        except ConnectionResetError:
-            print("Cannot Download ChromeDriver Please Download It Manually")
-            input()
-            exit()
-
-    # no param for this section beacuse we need only chromedriver-autoinstaller
-    # if you want add another library please edit function to give package name as param
-    @staticmethod
-    def _download_library():
-        import pip, importlib
-        try:
-            importlib.import_module("chromedriver-autoinstaller")
-        except ImportError:
-            try:
-                pip.main(["install", "chromedriver-autoinstaller"])
-            except:
-                print("Cant Install Package Please Instal It Manauly (chromedriver-autoinstaller)!")
-                input()
-                exit()
-        finally:
-            globals()["chromedriver-autoinstaller"] = importlib.import_module("chromedriver-autoinstaller")
-
-    @staticmethod
-    def _ask_driver_location():
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-
-        file_path = filedialog.askopenfilename()
-        return file_path
-
-
-class Analyzer(Handler):
-    def __init__(self, url, name="Analyzer"):
-        super().__init__()
         self.name = name
         self.main_url = url
         self.protocol = check_protocol(url)
-        self.webdriver_path = self.driver_handler()
         self.file_location = os.path.dirname(__file__)
         self.saved_path = self.set_save_path()
-        self.driver = webdriver.Chrome(self.webdriver_path, options=option)
+        self.driver = webdriver.Chrome(get_chrome_driver(remove_zip=True, path=chromedriver_path),
+                                       options=self._options)
 
     def set_save_path(self) -> str:
         """
@@ -373,6 +291,11 @@ class Analyzer(Handler):
 
         # Get Response for our website from whois API
         response = requests.request("GET", api_url, params=params).json()
+
+        if response.get('ErrorMessage'):
+            raise Exception(f"{response.get('ErrorMessage').get('errorCode')}: "
+                            f"{response.get('ErrorMessage').get('msg')}")
+
         response = response['WhoisRecord']
 
         # Archive Required data for whois image
@@ -440,7 +363,8 @@ class Analyzer(Handler):
 
         # Get Hosted website on server
         try:
-            hosted_website = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]/div[4]/div/div[1]/b').text
+            hosted_website = driver.find_element(By.XPATH,
+                                                 '/html/body/div[1]/div[2]/div[1]/div[4]/div/div[1]/b').text
             hosted_website = f" - {hosted_website} other sites hosted on this server"
         except NoSuchElementException as e:
             e.args += ("Hosted Website Not Found!",)
@@ -597,7 +521,8 @@ class Analyzer(Handler):
         # Find searchbar in page
         sleep(6)
         try:
-            search_bar = driver.find_element(By.XPATH, '/html/body/div[1]/main/article/form/div[1]/div[1]/div/input')
+            search_bar = driver.find_element(By.XPATH,
+                                             '/html/body/div[1]/main/article/form/div[1]/div[1]/div/input')
         except NoSuchElementException as e:
             e.args += ("Search Bar Not Found!",)
             raise e

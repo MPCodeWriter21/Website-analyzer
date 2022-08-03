@@ -3,3 +3,4 @@ Pillow
 requests
 log21
 python-decouple
+Beautifulsoup4
