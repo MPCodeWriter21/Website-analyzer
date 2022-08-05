@@ -59,7 +59,7 @@ class Analyzer:
         prefs = {"download.default_directory": os.getcwd()}
         self._options.add_experimental_option("prefs", prefs)
         self._options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        # self._options.add_argument('--headless')
+        self._options.add_argument('--headless')
         if not verbose:
             self._options.add_argument('log-level=3')
 
@@ -317,7 +317,7 @@ class Analyzer:
         editable.text((165, 0), self.domain, domain_color, font=domain_font)  # Domain name
         editable.text((120, 65), register_status, color, font=font)  # Registrar status
         editable.text((120, 90), name_servers, color, font=font)  # Name servers
-        editable.text((120, 159), dates, color, font=font)  # Dates
+        editable.text((120, 152), dates, color, font=font)  # Dates
         editable.text((120, 250), ip_address, color, font=font)  # IP address
         editable.text((195, 250), hosted_website, color, font=font)  # Hosted websites
         editable.text((140, 273), ip_location, color, font=font)  # IP location
@@ -600,7 +600,9 @@ class Analyzer:
         return print("SSL Done!")
 
     def close(self):
-        self.driver.close()
+        if self.driver:
+            self.driver.quit()
+            self.driver = None
 
     def __del__(self):
-        self.driver.close()
+        self.close()
