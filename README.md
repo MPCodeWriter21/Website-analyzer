@@ -4,7 +4,7 @@ Website Analyzer
 
 <div align="center">
 
-* CodeWriter21 edition *
+**CodeWriter21 edition**
 
 Give the program a website URL, and it will give you 6 analyzes including `Whois`, `Responsive`, `GTmetrix`, `Backlinks`
 , `AMP` and `SSL` test.

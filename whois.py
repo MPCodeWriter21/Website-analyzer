@@ -25,3 +25,5 @@ def whois(domain: str):
                     return r.json()
         except:
             pass
+
+    return {}

@@ -257,8 +257,42 @@ class Analyzer:
         else:
             title = title.text
 
+        log21.debug(f'get_whois: Site Title: {title}')
+
+        # Ip information
+        ip_info: dict = requests.get(f"http://ip-api.com/json/{self.domain}?fields=66846719").json()
+
+        ip_address = ip_info.get('query')
+
+        log21.debug(f'get_whois: IP Address: {ip_address}')
+
+        hosted_website = ip_info.get('reverse')
+
+        # Get IP Location
+        ip_city = ' - ' + ip_info.get('city') if ip_info.get('city') else ''
+
+        ip_location = ip_info.get('country') + ip_city
+
+        log21.debug(f'get_whois: IP Location: {ip_location}')
+
+        # Get country code
+        country_code = ip_info.get('countryCode')
+
+        log21.debug(f'get_whois: Country Code: {country_code}')
+
+        # Get country flag
+        flag_url = f'https://countryflagsapi.com/png/{country_code}'
+        flag = Image.open(requests.get(flag_url, stream=True).raw)
+        flag = flag.convert("RGBA")
+
+        # Resize flag
+        (width, height) = (flag.width // 20, flag.height // 20)
+        flag = flag.resize((width, height))
+
+        log21.debug(f'get_whois: Got the flag!')
+
         # Get Response for our website from whois API
-        response = whois(self.domain)
+        response = whois(self.domain or hosted_website)
 
         # Get register status
         register_status = "—"
@@ -269,34 +303,15 @@ class Analyzer:
         except KeyError:
             name_servers = "—"
 
+        log21.debug('get_whois: Name Servers: ' + str(name_servers.split('\n')))
+
         # Dates
         try:
             dates = "\n".join(f"{event['eventAction']}: {event['eventDate']}" for event in response['events'])
         except KeyError:
             dates = "—"
 
-        # Ip information
-        ip_info: dict = requests.get(f"http://ip-api.com/json/{self.domain}?fields=66846719").json()
-
-        ip_address = ip_info.get('query')
-        hosted_website = ip_info.get('reverse')
-
-        # Get IP Location
-        ip_city = ' - ' + ip_info.get('city') if ip_info.get('city') else ''
-
-        ip_location = ip_info.get('country') + ip_city
-
-        # Get country code
-        country_code = ip_info.get('countryCode')
-
-        # Get country flag
-        flag_url = f'https://countryflagsapi.com/png/{country_code}'
-        flag = Image.open(requests.get(flag_url, stream=True).raw)
-        flag = flag.convert("RGBA")
-
-        # Resize flag
-        (width, height) = (flag.width // 20, flag.height // 20)
-        flag = flag.resize((width, height))
+        log21.debug('get_whois: Dates: ' + str(dates.split('\n')))
 
         # Load raw whois image
         whois_image = Image.open('assets/images/whois.jpg')
@@ -596,8 +611,6 @@ class Analyzer:
 
         # Save the image
         raw_https.save(f"{self.saved_path}/ssl.png", format='png')
-
-        return print("SSL Done!")
 
     def close(self):
         if self.driver:
