@@ -1,5 +1,5 @@
 import unittest
-from main import Handler, url_handler
+from main import Handler, is_valid_url
 
 obj = Handler()
 
@@ -7,10 +7,10 @@ obj = Handler()
 class TestHandlerFunctions(unittest.TestCase):
 
     def test_url_checker(self):
-        self.assertTrue(url_handler("https://www.google.com"))
-        self.assertFalse(url_handler("https;//www.google.com"))
-        self.assertTrue(url_handler("google.com"))
-        self.assertTrue(url_handler("www.google.com"))
+        self.assertTrue(is_valid_url("https://www.google.com"))
+        self.assertFalse(is_valid_url("https;//www.google.com"))
+        self.assertTrue(is_valid_url("google.com"))
+        self.assertTrue(is_valid_url("www.google.com"))
 
     def test_url_protocol(self):
         self.assertEqual("https", check_protocol("https://www.google.com"))

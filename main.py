@@ -1,13 +1,20 @@
 # Import regex
+import json
 import os
-import re
+import shutil
+import zipfile
+import urllib.parse
 
 from time import sleep
 from typing import Union
 
+import log21
 import requests
+
+from bs4 import BeautifulSoup
 from PIL import (Image, ImageFont, ImageDraw, )
 from decouple import config
+
 from selenium import webdriver
 from selenium.common import (
     ElementNotInteractableException, NoSuchElementException,
@@ -16,19 +23,16 @@ from selenium.common import (
 )
 from selenium.webdriver import Keys
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions
 
+from whois import whois
 from driver_downloader import get_chrome_driver
 
 
-def check_protocol(url) -> str:
-    protocol = 'https' if url.startswith('https') else 'http'
-    return protocol
-
-
-def url_handler(url) -> bool:
+def is_valid_url(url) -> bool:
     """
-    This function is for handling the URL.
-    It will check if the URL is valid or not.
+    This function checks if the given url is valid or not.
     If it's valid, It will return True & save the url in main_url.
     If it's not valid, It will return False.
 
@@ -36,32 +40,14 @@ def url_handler(url) -> bool:
     :return: If URL is valid return True, else return False
     """
 
-    regex = ("((http|https)://)(www.)?" +
-             "[a-zA-Z0-9@:%._\\+~#?&//=]" +
-             "{2,256}\\.[a-z]" +
-             "{2,6}\\b([-a-zA-Z0-9@:%" +
-             "._\\+~#?&//=]*)")
-    pattern = re.compile(regex)
+    parsed_url = urllib.parse.urlsplit(url)
 
-    if re.search(pattern, url):
-        return True
-    else:
-        protocol = check_protocol(url)
-        if protocol in url:
-            if "://" in url:
-                return False
-            else:
-                new_url = f"{protocol}://{url}"
-                if re.search(pattern, new_url):
-                    return True
-                else:
-                    return False
-        else:
-            new_url = f"{protocol}://{url}"
-            if re.search(pattern, new_url):
-                return True
-            else:
-                return False
+    if parsed_url.scheme not in ('http', 'https'):
+        return False
+    if not parsed_url.netloc:
+        return False
+
+    return True
 
 
 class Analyzer:
@@ -73,13 +59,16 @@ class Analyzer:
         prefs = {"download.default_directory": os.getcwd()}
         self._options.add_experimental_option("prefs", prefs)
         self._options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        self._options.add_argument('--headless')
+        # self._options.add_argument('--headless')
         if not verbose:
             self._options.add_argument('log-level=3')
 
         self.name = name
-        self.main_url = url
-        self.protocol = check_protocol(url)
+        self.url = url
+        parsed_url = urllib.parse.urlsplit(url)
+        self.scheme = parsed_url.scheme
+        self.domain = parsed_url.netloc
+        self.url_path = parsed_url.path
         self.file_location = os.path.dirname(__file__)
         self.saved_path = self.set_save_path()
         self.driver = webdriver.Chrome(get_chrome_driver(remove_zip=True, path=chromedriver_path),
@@ -126,7 +115,7 @@ class Analyzer:
 
     def _wait_until(self, by: str, el: str):
         """
-        It checks every five seconds Element Exists in page or not
+        It checks every one second if Element Exists in page or not
         If Element Exists in page, It checks again else break loop.
 
         (It's good for when you want check is page reloaded or not)
@@ -137,7 +126,7 @@ class Analyzer:
         driver = self.driver
 
         while True:
-            sleep(5)
+            sleep(1)
             try:
                 driver.find_element(by, el)
             except NoSuchElementException:
@@ -149,14 +138,14 @@ class Analyzer:
 
         :return: Optimized Images
         """
-        import shutil
-        import zipfile
         driver = self.driver
         saved_path = self.saved_path
 
         # Get Image compressor URL
         driver.get("https://imagecompressor.com/")
 
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located(
+            (By.XPATH, '//*[@id="fileSelector"]')))
         # Get Upload Button
         try:
             upload_btn = driver.find_element(By.XPATH, '//*[@id="fileSelector"]')
@@ -220,21 +209,19 @@ class Analyzer:
             pass
 
         # Find and click download button
-        sleep(2)
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located(
+            (By.XPATH, '//*[@id="app"]/section[1]/div[3]/button')))
         try:
             download_btn = driver.find_element(By.XPATH, '//*[@id="app"]/section[1]/div[3]/button')
         except NoSuchElementException as e:
             e.args += ("Download Button Not Found!",)
             raise e
 
-        sleep(22)
         try:
             download_btn.click()
         except ElementNotInteractableException as e:
             e.args += ("Download Button not intractable!",)
             raise e
-
-        sleep(12)
 
         # Remove All unoptimized files
         for file in os.listdir(saved_path):
@@ -261,114 +248,46 @@ class Analyzer:
             pass
 
     def get_whois(self):
-        driver = self.driver
-        website_driver = self.driver
-
-        website_driver.get(self.main_url)
-
-        # Get Website title
-        title = website_driver.title
-
-        # Get URL from view dns website
-        driver.get("https://dnslytics.com/reverse-ip")
-
-        # Find searchbar in page
-        try:
-            search_bar = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]/div[3]/form/input[1]')
-        except NoSuchElementException as e:
-            e.args += ("Search Bar Not Found!",)
-            raise e
-
-        # Our whois API
-        api_url = "https://www.whoisxmlapi.com/whoisserver/WhoisService"
-
-        # Parameters to send with request
-        params = {
-            "domainName": self.main_url,
-            "apiKey": config("WHOIS_API"),
-            "outputFormat": "JSON"
-        }
+        # Get the website's title
+        res = requests.get(self.url)
+        soup = BeautifulSoup(res.content, 'html.parser')
+        title = soup.find('title')
+        if title is None:
+            title = "No Title"
+        else:
+            title = title.text
 
         # Get Response for our website from whois API
-        response = requests.request("GET", api_url, params=params).json()
-
-        if response.get('ErrorMessage'):
-            raise Exception(f"{response.get('ErrorMessage').get('errorCode')}: "
-                            f"{response.get('ErrorMessage').get('msg')}")
-
-        response = response['WhoisRecord']
-
-        # Archive Required data for whois image
-        domain_name = response['domainName']
+        response = whois(self.domain)
 
         # Get register status
-        try:
-            register_status = response['status']
-        except KeyError:
-            register_status = "—"
+        register_status = "—"
 
         # Get Nameservers
         try:
-            name_servers = "\n".join(response['nameServers']['hostNames'])
+            name_servers = "\n".join(nameserver['ldhName'] for nameserver in response['nameservers'])
         except KeyError:
             name_servers = "—"
 
         # Dates
         try:
-            created_date = f"Created on {response['createdDateNormalized']}"
+            dates = "\n".join(f"{event['eventAction']}: {event['eventDate']}" for event in response['events'])
         except KeyError:
-            created_date = "Created on —"
-        try:
-            updated_date = f"Updated on {response['updatedDateNormalized']}"
-        except KeyError:
-            updated_date = "Updated on —"
-        try:
-            expires_date = f"Expires on {response['expiresDateNormalized']}"
-        except KeyError:
-            expires_date = "Expires on —"
+            dates = "—"
 
-        dates = f'{created_date}\n{expires_date}\n{updated_date}'
+        # Ip information
+        ip_info: dict = requests.get(f"http://ip-api.com/json/{self.domain}?fields=66846719").json()
 
-        # Pass Main URL to whois website
-        sleep(4)
-        try:
-            search_bar.send_keys(domain_name)
-            search_bar.send_keys(Keys.RETURN)
-        except ElementNotInteractableException as e:
-            e.args += ("Search Bar not intractable!",)
-            raise e
-
-        # Get IP Address
-        sleep(4)
-        try:
-            raw_dns_text = driver.find_element(By.XPATH, '/html/body/div[1]/div[2]/div[1]/div[4]/div/div[1]').text
-        except NoSuchElementException as e:
-            e.args += ("Raw DNS Text Not Found!",)
-            raise e
-        pattern = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
-        ip_address = pattern.search(raw_dns_text).group()
-
-        ip_info = requests.get(f"http://ip-api.com/json/{ip_address}").json()
+        ip_address = ip_info.get('query')
+        hosted_website = ip_info.get('reverse')
 
         # Get IP Location
-        try:
-            ip_city = f" - {ip_info['city']}"
-        except KeyError:
-            ip_city = ""
+        ip_city = ' - ' + ip_info.get('city') if ip_info.get('city') else ''
 
-        ip_location = ip_info['country'] + ip_city
+        ip_location = ip_info.get('country') + ip_city
 
         # Get country code
-        country_code = ip_info['countryCode']
-
-        # Get Hosted website on server
-        try:
-            hosted_website = driver.find_element(By.XPATH,
-                                                 '/html/body/div[1]/div[2]/div[1]/div[4]/div/div[1]/b').text
-            hosted_website = f" - {hosted_website} other sites hosted on this server"
-        except NoSuchElementException as e:
-            e.args += ("Hosted Website Not Found!",)
-            raise e
+        country_code = ip_info.get('countryCode')
 
         # Get country flag
         flag_url = f'https://countryflagsapi.com/png/{country_code}'
@@ -395,7 +314,7 @@ class Analyzer:
         domain_color = (70, 70, 70)
 
         # Add text to raw image
-        editable.text((165, 0), domain_name, domain_color, font=domain_font)  # Domain name
+        editable.text((165, 0), self.domain, domain_color, font=domain_font)  # Domain name
         editable.text((120, 65), register_status, color, font=font)  # Registrar status
         editable.text((120, 90), name_servers, color, font=font)  # Name servers
         editable.text((120, 159), dates, color, font=font)  # Dates
@@ -419,6 +338,9 @@ class Analyzer:
         # Change window size for image size
         driver.set_window_size(1280, 1024)
 
+        WebDriverWait(driver, 10).until(
+            expected_conditions.presence_of_element_located((By.XPATH, '//input[@name="site"]')))
+
         # Find searchbar in page
         try:
             search_bar = driver.find_element(By.XPATH, '//input[@name="site"]')
@@ -428,14 +350,13 @@ class Analyzer:
 
         # Pass Main URL to responsive website
         try:
-            search_bar.send_keys(self.main_url)
+            search_bar.send_keys(self.url)
             search_bar.send_keys(Keys.RETURN)
         except ElementNotInteractableException as e:
             e.args += ("Search Bar not intractable!",)
             raise e
 
         # make page for good picture by removing element
-        sleep(2)
         driver.execute_script('document.querySelector([role="main"]).style.background = "#fff"')
         driver.execute_script('document.querySelector(".devices blockquote").remove()')
         try:
@@ -444,11 +365,9 @@ class Analyzer:
             pass
 
         # Fixing image for good picture by changing style
-        sleep(3)
         driver.execute_script("window.scrollTo({top:70, left:0, behavior: 'auto'})")
 
         # Save file
-        sleep(24)
         driver.save_screenshot(f"{self.saved_path}/responsive.png")
 
         # Crop and save the image
@@ -473,7 +392,8 @@ class Analyzer:
         driver.set_window_size(1280, 1024)
 
         # === Login Section ===
-        sleep(3)
+        WebDriverWait(driver, 10).until(
+            expected_conditions.presence_of_element_located((By.ID, 'user-nav-login')))
         # Find login page button
         try:
             login_btn = driver.find_element(By.XPATH, '//*[@id="user-nav-login"]/a')
@@ -482,6 +402,7 @@ class Analyzer:
             raise e
         login_btn.click()
 
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located((By.NAME, 'email')))
         # Find email and password field in page
         try:
             email = driver.find_element(By.XPATH, '//input[@name="email"]')
@@ -489,12 +410,15 @@ class Analyzer:
             e.args += ("Email Field Not Found!",)
             raise e
 
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located((By.NAME, 'password')))
         try:
             password = driver.find_element(By.XPATH, '//input[@name="password"]')
         except NoSuchElementException as e:
             e.args += ("Password Field Not Found!",)
             raise e
 
+        WebDriverWait(driver, 10).until(
+            expected_conditions.presence_of_element_located((By.ID, 'menu-site-nav')))
         try:
             submit_login_btn = driver.find_element(By.XPATH,
                                                    '//*[@id="menu-site-nav"]/div[2]/div[1]/form/div[4]/button'
@@ -504,7 +428,6 @@ class Analyzer:
             raise e
 
         # Pass Main URL to responsive website
-        sleep(3)
         try:
             email.send_keys(config('EMAIL'))
             password.send_keys(config('PASSWORD'))
@@ -514,12 +437,12 @@ class Analyzer:
             raise e
 
         # Check Email and Password valid for login gtmetrix
-        sleep(3)
         if self._check_exists(By.CLASS_NAME, "tooltip-error"):
-            return print("GTMetrix Login error!")
+            raise Exception("GTMetrix Login Failed!")
 
         # Find searchbar in page
-        sleep(6)
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located(
+            (By.XPATH, '/html/body/div[1]/main/article/form/div[1]/div[1]/div/input')))
         try:
             search_bar = driver.find_element(By.XPATH,
                                              '/html/body/div[1]/main/article/form/div[1]/div[1]/div/input')
@@ -528,15 +451,15 @@ class Analyzer:
             raise e
 
         # Pass Main URL to GTMetrix website
-        sleep(3)
         try:
-            search_bar.send_keys(self.main_url)
+            search_bar.send_keys(self.url)
         except ElementNotInteractableException as e:
             e.args += ("Search Bar not intractable!",)
             raise e
 
         # Find and submit Main URL to GTMetrix website
-        sleep(3)
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located(
+            (By.XPATH, '/html/body/div[1]/main/article/form/div[1]/div[2]/button')))
         try:
             submit_url_btn = driver.find_element(By.XPATH,
                                                  '/html/body/div[1]/main/article/form/div[1]/div[2]/button'
@@ -551,20 +474,12 @@ class Analyzer:
         self._wait_until(By.XPATH, "/html/body/div[1]/main/article/h1")
 
         # Fixing image for good picture by changing style
-        sleep(5)
         driver.execute_script("window.scrollTo({top:80, left:0, behavior: 'auto'})")
         driver.execute_script("document.body.style.zoom='90%'")
 
         # Delete ADS banner from page
-        sleep(2)
-        try:
-            banner = driver.find_element(By.XPATH, '//div[@id="summer"]')
-            driver.execute_script("arguments[0].remove()", banner)
-        except NoSuchElementException:
-            pass
-
-        # Delete ADS banner from page
-        sleep(2)
+        WebDriverWait(driver, 10).until(expected_conditions.presence_of_element_located(
+            (By.XPATH, '//div[@id="summer"]')))
         try:
             banner = driver.find_element(By.XPATH, '//div[@id="summer"]')
             driver.execute_script("arguments[0].remove()", banner)
@@ -590,10 +505,12 @@ class Analyzer:
         # Change window size for image size
         driver.set_window_size(1280, 1024)
 
+        WebDriverWait(driver, 10).until(
+            expected_conditions.presence_of_element_located((By.XPATH, '//input[@name="url"]')))
         # Find searchbar in page
         try:
             search_bar = driver.find_element(By.XPATH, '//input[@name="url"]')
-            search_bar.send_keys(self.main_url)
+            search_bar.send_keys(self.url)
             search_bar.send_keys(Keys.RETURN)
         except NoSuchElementException as e:
             e.args += ("Search Bar Not Found!",)
@@ -603,7 +520,6 @@ class Analyzer:
             raise e
 
         # Fixing image for good picture by changing style
-        sleep(1)
         driver.execute_script('document.querySelector("#cookiePopup").remove()')
         driver.execute_script('document.querySelector("#frm-wrap").remove()')
 
@@ -611,7 +527,6 @@ class Analyzer:
         driver.execute_script("window.scrollTo({top:30, left:0, behavior: 'auto'})")
 
         # Save file
-        sleep(3)
         driver.save_screenshot(f"{self.saved_path}/backlinks.png")
 
         # Crop and save the image
@@ -620,10 +535,9 @@ class Analyzer:
 
     def get_amp(self):
         # Get URL
-        url = self.main_url
+        url = self.url
 
         # Load the raw image
-        sleep(2)
         raw_amp = Image.open('assets/images/AMP.jpg')
 
         # Make image editable
@@ -638,14 +552,12 @@ class Analyzer:
         # Save the image
         raw_amp.save(f"{self.saved_path}/AMP.png")
 
-        return print("AMP Done!")
-
     def get_ssl(self):
         driver = self.driver
         protocol = self.protocol
 
         # Get URL and SSL
-        url = self.main_url
+        url = self.url
 
         # Get website URL
         driver.get(url)
@@ -686,3 +598,9 @@ class Analyzer:
         raw_https.save(f"{self.saved_path}/ssl.png", format='png')
 
         return print("SSL Done!")
+
+    def close(self):
+        self.driver.close()
+
+    def __del__(self):
+        self.driver.close()

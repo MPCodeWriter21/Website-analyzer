@@ -3,7 +3,7 @@ import time
 
 import log21
 
-from main import Analyzer, url_handler
+from main import Analyzer, is_valid_url
 
 logger = log21.get_logger()
 
@@ -17,27 +17,37 @@ def main():
 
     args = parser.parse_args()
 
-    if not url_handler(args.url):
+    if not is_valid_url(args.url):
         parser.error('Invalid URL')
+
+    if args.verbose:
+        log21.basic_config(level=log21.DEBUG)
 
     analyzer = Analyzer(args.url, args.output, args.driver, args.verbose)
 
     start_time = time.time()
 
-    funcs = [analyzer.get_whois,
-             analyzer.get_responsive,
-             # analyzer.get_gtmetrix,
-             analyzer.get_backlinks,
-             analyzer.get_amp,
-             analyzer.get_ssl]
+    funcs = [
+        analyzer.get_whois,
+        analyzer.get_responsive,
+        analyzer.get_gtmetrix,
+        analyzer.get_backlinks,
+        analyzer.get_amp,
+        analyzer.get_ssl
+    ]
 
     for func in funcs:
         try:
-            logger.info(f"Starting {func.__name__}")
+            logger.info(f"Starting {func.__name__}...")
             func()
+            logger.info(f"{func.__name__} finished!")
         except Exception as e:
             logger.error(f"Error in {func.__name__}: {e.__class__.__name__}: {str(e)}")
             continue
+
+    # Checking running time
+    end_time = time.time()
+    logger.info(f'Done in {int(end_time - start_time)} seconds.')
 
     # Optimize Images
     while True:
@@ -50,12 +60,8 @@ def main():
         else:
             logger.error("Please enter correct value")
 
-    # Checking running time
-    end_time = time.time()
-    logger.info(f'Done in {int(end_time - start_time)} seconds.')
-
     # Close Driver After Analyze
-    analyzer.driver.close()
+    analyzer.close()
 
 
 if __name__ == '__main__':
