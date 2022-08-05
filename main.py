@@ -554,7 +554,7 @@ class Analyzer:
 
     def get_ssl(self):
         driver = self.driver
-        protocol = self.protocol
+        protocol = self.scheme
 
         # Get URL and SSL
         url = self.url

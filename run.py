@@ -13,15 +13,22 @@ def main():
     parser.add_argument('-u', '--url', help='URL to analyze', required=True)
     parser.add_argument('-o', '--output', help='Output directory name', default='Analyzer')
     parser.add_argument('-d', '--driver', help='ChromeDriver path')
+    parser.add_argument('-O', '--optimize', help='Optimize images', action='store_true')
     parser.add_argument('-v', '--verbose', help='Verbose mode', action='store_true')
+    parser.add_argument('-q', '--quiet', help='Quiet mode', action='store_true')
 
     args = parser.parse_args()
 
     if not is_valid_url(args.url):
         parser.error('Invalid URL')
 
+    if args.verbose and args.quiet:
+        parser.error('Cannot use both -v and -q')
     if args.verbose:
         log21.basic_config(level=log21.DEBUG)
+    elif args.quiet:
+        log21.basic_config(level=log21.ERROR)
+        logger.setLevel(log21.ERROR)
 
     analyzer = Analyzer(args.url, args.output, args.driver, args.verbose)
 
@@ -50,15 +57,8 @@ def main():
     logger.info(f'Done in {int(end_time - start_time)} seconds.')
 
     # Optimize Images
-    while True:
-        optimize = logger.input("\nDo you want to optimize images(y/n)? ").lower()
-        if optimize == "y":
-            analyzer.optimize()
-            break
-        elif optimize == "n":
-            break
-        else:
-            logger.error("Please enter correct value")
+    if args.optimize:
+        analyzer.optimize()
 
     # Close Driver After Analyze
     analyzer.close()
