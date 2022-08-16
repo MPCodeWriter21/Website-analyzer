@@ -4,3 +4,4 @@ requests
 log21
 python-decouple
 Beautifulsoup4
+whois21>=1.1.0

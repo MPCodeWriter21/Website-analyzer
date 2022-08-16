@@ -9,6 +9,7 @@ from time import sleep
 from typing import Union
 
 import log21
+import whois21
 import requests
 
 from bs4 import BeautifulSoup
@@ -26,7 +27,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 
-from whois import whois
 from driver_downloader import get_chrome_driver
 
 
@@ -292,24 +292,19 @@ class Analyzer:
         log21.debug(f'get_whois: Got the flag!')
 
         # Get Response for our website from whois API
-        response = whois(self.domain or hosted_website)
+        response = whois21.WHOIS(self.domain)
 
-        # Get register status
-        register_status = "—"
+        register_status = ' '.join(
+            response.status if not isinstance(response.status, str) else [response.status]).strip()
 
-        # Get Nameservers
-        try:
-            name_servers = "\n".join(nameserver['ldhName'] for nameserver in response['nameservers'])
-        except KeyError:
-            name_servers = "—"
+        log21.debug('get_whois: Register Status: ' + register_status)
 
-        log21.debug('get_whois: Name Servers: ' + str(name_servers.split('\n')))
+        name_servers = "\n".join(response.name_servers).strip()
 
-        # Dates
-        try:
-            dates = "\n".join(f"{event['eventAction']}: {event['eventDate']}" for event in response['events'])
-        except KeyError:
-            dates = "—"
+        log21.debug('get_whois: Name Servers: ' + name_servers)
+
+        dates = "\n".join(date.strftime("%Y-%m-%d %H:%M:%S") for date in
+                          [response.creation_date, response.expires_date, response.updated_date]).strip()
 
         log21.debug('get_whois: Dates: ' + str(dates.split('\n')))
 
